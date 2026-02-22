@@ -19,7 +19,6 @@ Sub ReadOneDriveMagazines()
     Set ws = ThisWorkbook.Sheets("OneDrive Files")
     ws.Cells.ClearContents
     
-    ' Index column FIRST
     ws.Range("A1:F1").Value = Array("Index", "Full Path", "File Name", "Year", "Month", "Date Modified")
     
     nextRow = 2
@@ -48,25 +47,14 @@ Private Sub ScanFolder(ByVal folder As Object, ByVal ws As Worksheet, ByRef next
             indexVal = ""
         End If
         
-        ' Index
         ws.Cells(nextRow, 1).Value = indexVal
         
-        ' Full Path as hyperlink
-        ws.Hyperlinks.Add _
-            Anchor:=ws.Cells(nextRow, 2), _
-            Address:=file.Path, _
-            TextToDisplay:=file.Path
+        ws.Hyperlinks.Add Anchor:=ws.Cells(nextRow, 2), _
+            Address:=file.Path, TextToDisplay:=file.Path
         
-        ' File Name
         ws.Cells(nextRow, 3).Value = file.Name
-        
-        ' Year
         ws.Cells(nextRow, 4).Value = yearVal
-        
-        ' Month
         ws.Cells(nextRow, 5).Value = monthVal
-        
-        ' Date Modified
         ws.Cells(nextRow, 6).Value = file.DateLastModified
         
         nextRow = nextRow + 1
@@ -99,65 +87,42 @@ Private Sub ExtractYearMonth(ByVal fileName As String, ByRef yr As String, ByRef
     cleaned = Replace(cleaned, ".zip", "")
     cleaned = Replace(cleaned, "_", " ")
     cleaned = Replace(cleaned, "-", " ")
-    cleaned = Replace(cleaned, ".", " ")   ' <-- key fix for "04.2022"
+    cleaned = Replace(cleaned, ".", " ")   ' <-- FIX para casos como 04.2022
     
     parts = Split(cleaned, " ")
     
-    ' FIRST PRIORITY: detect ANY 4-digit year anywhere in the filename
+    ' Detectar año de 4 dígitos en cualquier parte
     fourDigitYear = GetYearFromString(cleaned)
-    If fourDigitYear <> "" Then
-        yr = fourDigitYear
-    End If
+    If fourDigitYear <> "" Then yr = fourDigitYear
     
     For Each p In parts
         
-        ' Holiday edition (explicit "Hol")
+        ' Holiday explícito
         If InStr(p, "hol") > 0 Then
             mn = "Holiday"
-            
             Dim y As String
             y = Trim(Replace(p, "hol", ""))
-            
             If IsNumeric(y) Then
-                If CInt(y) > 60 Then
-                    yr = "19" & y
-                Else
-                    yr = "20" & y
-                End If
+                If CInt(y) > 60 Then yr = "19" & y Else yr = "20" & y
             End If
-            
             Exit Sub
         End If
         
-        ' If no 4-digit year found, allow 4-digit token detection
+        ' Año de 4 dígitos si no se detectó antes
         If yr = "" Then
             If IsNumeric(p) And Len(p) = 4 Then
-                If CInt(p) >= 1900 And CInt(p) <= Year(Date) + 1 Then
-                    yr = p
-                End If
+                If CInt(p) >= 1900 And CInt(p) <= Year(Date) + 1 Then yr = p
             End If
         End If
         
-        ' Only use 2-digit year if NO 4-digit year was found
+        ' Año de 2 dígitos si no hay año de 4 dígitos
         If yr = "" Then
             If IsNumeric(p) And Len(p) = 2 Then
-                If CInt(p) > 60 Then
-                    yr = "19" & p
-                Else
-                    yr = "20" & p
-                End If
+                If CInt(p) > 60 Then yr = "19" & p Else yr = "20" & p
             End If
         End If
         
-        ' Month detection (numeric 1–12)
-        If IsNumeric(p) And Len(p) <= 2 Then
-            If CInt(p) >= 1 And CInt(p) <= 12 Then
-                mn = MonthName(CInt(p))
-                foundMonth = True
-            End If
-        End If
-        
-        ' Month detection (word)
+        ' MES POR PALABRA (PRIORIDAD MÁXIMA)
         Select Case p
             Case "jan", "january": mn = "January": foundMonth = True
             Case "feb", "february": mn = "February": foundMonth = True
@@ -173,9 +138,21 @@ Private Sub ExtractYearMonth(ByVal fileName As String, ByRef yr As String, ByRef
             Case "dec", "december": mn = "December": foundMonth = True
         End Select
         
+        ' Si ya se detectó mes por palabra, ignorar meses numéricos
+        If foundMonth Then GoTo SkipNumeric
+        
+        ' MES NUMÉRICO SOLO SI NO HAY MES POR PALABRA
+        If IsNumeric(p) And Len(p) <= 2 Then
+            If CInt(p) >= 1 And CInt(p) <= 12 Then
+                mn = MonthName(CInt(p))
+                foundMonth = True
+            End If
+        End If
+        
+SkipNumeric:
     Next p
     
-    ' 13 or 14 = Holiday edition if no month found
+    ' 13 o 14 = Holiday si no hay mes
     If Not foundMonth Then
         For Each p In parts
             If p = "13" Or p = "14" Then
@@ -206,5 +183,3 @@ Private Function GetYearFromString(ByVal s As String) As String
     
     GetYearFromString = ""
 End Function
-
-
