@@ -24,18 +24,21 @@ Sub ReadOneDriveMagazines()
     nextRow = 2
     Set root = fso.GetFolder(startPath)
     
-    Call ScanFolder(root, ws, nextRow)
+    Call ScanFolder(root, ws, nextRow, startPath)
+    
+    ' Update the Magazine Inventory sheet to only populate PDFs for matching publications
+    Call UpdateMagazineInventory(startPath)
     
     MsgBox "Completed. " & nextRow - 2 & " files processed.", vbInformation
 
 End Sub
 
 
-Private Sub ScanFolder(ByVal folder As Object, ByVal ws As Worksheet, ByRef nextRow As Long)
+Private Sub ScanFolder(ByVal folder As Object, ByVal ws As Worksheet, ByRef nextRow As Long, ByVal rootPath As String)
 
     Dim file As Object
     Dim subFolder As Object
-    Dim yearVal As String, monthVal As String, indexVal As String
+    Dim yearVal As String, monthVal As String, indexVal As String, topFolder As String
     
     For Each file In folder.Files
         
@@ -45,6 +48,15 @@ Private Sub ScanFolder(ByVal folder As Object, ByVal ws As Worksheet, ByRef next
             indexVal = yearVal & "|" & monthVal
         Else
             indexVal = ""
+        End If
+        
+        topFolder = GetTopLevelFolder(folder.Path, rootPath)
+        If topFolder <> "" Then
+            If indexVal <> "" Then
+                indexVal = topFolder & "|" & indexVal
+            Else
+                indexVal = topFolder
+            End If
         End If
         
         ws.Cells(nextRow, 1).Value = indexVal
@@ -61,7 +73,7 @@ Private Sub ScanFolder(ByVal folder As Object, ByVal ws As Worksheet, ByRef next
     Next file
     
     For Each subFolder In folder.SubFolders
-        Call ScanFolder(subFolder, ws, nextRow)
+        Call ScanFolder(subFolder, ws, nextRow, rootPath)
     Next subFolder
 
 End Sub
@@ -182,4 +194,97 @@ Private Function GetYearFromString(ByVal s As String) As String
     Next i
     
     GetYearFromString = ""
+End Function
+
+Private Function GetTopLevelFolder(ByVal folderPath As String, ByVal rootPath As String) As String
+    Dim rel As String
+
+    rel = folderPath
+    If LCase(Left(rel, Len(rootPath))) = LCase(rootPath) Then
+        rel = Mid(rel, Len(rootPath) + 1)
+    End If
+    If Left(rel, 1) = "\" Then rel = Mid(rel, 2)
+
+    If rel = "" Then
+        GetTopLevelFolder = ""
+        Exit Function
+    End If
+
+    GetTopLevelFolder = Split(rel, "\")(0)
+End Function
+
+Private Sub UpdateMagazineInventory(ByVal startPath As String)
+    Dim ws As Worksheet
+    Dim pubCol As Long, docCol As Long
+    Dim lastCol As Long, lastRow As Long
+    Dim c As Long
+    Dim pub As String
+    Dim pubMap As Object
+
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets("Magazine Inventory")
+    On Error GoTo 0
+
+    If ws Is Nothing Then Exit Sub
+
+    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+
+    For c = 1 To lastCol
+        Dim header As String
+        header = Trim(CStr(ws.Cells(1, c).Value))
+        If LCase(header) = "publication" Then pubCol = c
+        If LCase(header) = "pdf document" Or LCase(header) = "document" Then docCol = c
+    Next c
+
+    If pubCol = 0 Or docCol = 0 Then Exit Sub
+
+    Set pubMap = GetPublicationPdfMap(startPath)
+    If pubMap Is Nothing Then Exit Sub
+
+    lastRow = ws.Cells(ws.Rows.Count, pubCol).End(xlUp).Row
+
+    For c = 2 To lastRow
+        pub = Trim(CStr(ws.Cells(c, pubCol).Value))
+        If pub <> "" And pubMap.Exists(pub) Then
+            ws.Cells(c, docCol).Value = pubMap(pub)
+        Else
+            ws.Cells(c, docCol).ClearContents
+        End If
+    Next c
+End Sub
+
+Private Function GetPublicationPdfMap(ByVal startPath As String) As Object
+    Dim fso As Object
+    Dim root As Object
+    Dim subFolder As Object
+    Dim file As Object
+    Dim bestPdfPath As String
+    Dim bestDate As Date
+    Dim pubMap As Object
+
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FolderExists(startPath) Then
+        Set GetPublicationPdfMap = Nothing
+        Exit Function
+    End If
+
+    Set root = fso.GetFolder(startPath)
+    Set pubMap = CreateObject("Scripting.Dictionary")
+    pubMap.CompareMode = vbTextCompare
+
+    For Each subFolder In root.SubFolders
+        bestPdfPath = ""
+        bestDate = #1/1/1900#
+        For Each file In subFolder.Files
+            If LCase(Right(file.Name, 4)) = ".pdf" Then
+                If file.DateLastModified > bestDate Then
+                    bestDate = file.DateLastModified
+                    bestPdfPath = file.Path
+                End If
+            End If
+        Next file
+        pubMap(subFolder.Name) = bestPdfPath
+    Next subFolder
+
+    Set GetPublicationPdfMap = pubMap
 End Function
