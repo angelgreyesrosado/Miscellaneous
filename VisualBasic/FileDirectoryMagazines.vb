@@ -109,17 +109,26 @@ Private Sub ExtractYearMonth(ByVal fileName As String, ByRef yr As String, ByRef
     
     For Each p In parts
         
-        ' Holiday explícito
+        ' Holiday, Anniversaryexplícito
+            Dim y As String
         If InStr(p, "hol") > 0 Then
             mn = "Holiday"
-            Dim y As String
             y = Trim(Replace(p, "hol", ""))
             If IsNumeric(y) Then
                 If CInt(y) > 60 Then yr = "19" & y Else yr = "20" & y
             End If
             Exit Sub
         End If
-        
+
+        If InStr(p, "anni") > 0 Then
+            mn = "Anniversary"
+            y = Trim(Replace(p, "anni", ""))
+            If IsNumeric(y) Then
+                If CInt(y) > 60 Then yr = "19" & y Else yr = "20" & y
+            End If
+            Exit Sub
+        End If
+
         ' Año de 4 dígitos si no se detectó antes
         If yr = "" Then
             If IsNumeric(p) And Len(p) = 4 Then
