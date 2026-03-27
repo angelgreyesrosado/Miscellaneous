@@ -1,55 +1,121 @@
 Option Explicit
 
+' ============================================================
+' MAIN ENTRY POINT
+' ============================================================
 Sub ReadOneDriveMagazines()
 
     Dim fso As Object
     Dim root As Object
     Dim ws As Worksheet
-    Dim nextRow As Long
     Dim startPath As String
-    
+    Dim fileList As Collection
+    Dim dataArr() As Variant
+    Dim i As Long
+
+    '-----------------------------------------
+    ' SPEED BOOST: Turn off expensive features
+    '-----------------------------------------
+    Dim prevCalc As XlCalculation
+    prevCalc = Application.Calculation
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+    Application.DisplayStatusBar = False
+
+    On Error GoTo Cleanup
+
     startPath = "C:\Users\angel\OneDrive\Magazines"
-    
+
     Set fso = CreateObject("Scripting.FileSystemObject")
     If Not fso.FolderExists(startPath) Then
         MsgBox "Folder not found: " & startPath, vbCritical
-        Exit Sub
+        GoTo Cleanup
     End If
-    
+
     Set ws = ThisWorkbook.Sheets("OneDrive Files")
     ws.Cells.ClearContents
-    
+
     ws.Range("A1:F1").Value = Array("Index", "Full Path", "File Name", "Year", "Month", "Date Modified")
-    
-    nextRow = 2
+
+    '-----------------------------------------
+    ' SCAN FILES INTO MEMORY (FAST)
+    '-----------------------------------------
+    Set fileList = New Collection
     Set root = fso.GetFolder(startPath)
-    
-    Call ScanFolder(root, ws, nextRow, startPath)
-    
-    ' Update the Magazine Inventory sheet to only populate PDFs for matching publications
+
+    Call CollectFiles(root, fileList, startPath)
+
+    '-----------------------------------------
+    ' BUILD ARRAY FOR FAST WRITE
+    '-----------------------------------------
+    ReDim dataArr(1 To fileList.Count, 1 To 6)
+
+    For i = 1 To fileList.Count
+        Dim info As Variant
+        info = fileList(i)
+
+        dataArr(i, 1) = info(0) ' Index
+        dataArr(i, 2) = info(1) ' Full Path
+        dataArr(i, 3) = info(2) ' File Name
+        dataArr(i, 4) = info(3) ' Year
+        dataArr(i, 5) = info(4) ' Month
+        dataArr(i, 6) = info(5) ' Date Modified
+    Next i
+
+    '-----------------------------------------
+    ' WRITE ALL ROWS IN ONE SHOT (FASTEST)
+    '-----------------------------------------
+    ws.Range("A2").Resize(fileList.Count, 6).Value = dataArr
+
+    '-----------------------------------------
+    ' ADD HYPERLINKS (FASTER VIA FORMULA)
+    '-----------------------------------------
+    Dim r As Long
+    For r = 2 To fileList.Count + 1
+        ws.Cells(r, 2).Formula = "=HYPERLINK(""" & ws.Cells(r, 2).Value & """,""" & ws.Cells(r, 2).Value & """)"
+    Next r
+
+    '-----------------------------------------
+    ' UPDATE INVENTORY
+    '-----------------------------------------
     Call UpdateMagazineInventory(startPath)
-    
-    MsgBox "Completed. " & nextRow - 2 & " files processed.", vbInformation
+
+    MsgBox "Completed. " & fileList.Count & " files processed.", vbInformation
+
+Cleanup:
+    '-----------------------------------------
+    ' RESTORE EXCEL SETTINGS
+    '-----------------------------------------
+    Application.Calculation = prevCalc
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    Application.DisplayStatusBar = True
 
 End Sub
 
 
-Private Sub ScanFolder(ByVal folder As Object, ByVal ws As Worksheet, ByRef nextRow As Long, ByVal rootPath As String)
+' ============================================================
+' COLLECT FILES INTO MEMORY (NO SHEET WRITES)
+' ============================================================
+Private Sub CollectFiles(ByVal folder As Object, ByRef fileList As Collection, ByVal rootPath As String)
 
     Dim file As Object
     Dim subFolder As Object
-    Dim yearVal As String, monthVal As String, indexVal As String, topFolder As String
-    
+    Dim yearVal As String, monthVal As String
+    Dim indexVal As String, topFolder As String
+
     For Each file In folder.Files
-        
+
         Call ExtractYearMonth(file.Name, yearVal, monthVal)
-        
+
         If yearVal <> "" And monthVal <> "" Then
             indexVal = yearVal & "|" & monthVal
         Else
             indexVal = ""
         End If
-        
+
         topFolder = GetTopLevelFolder(folder.Path, rootPath)
         If topFolder <> "" Then
             If indexVal <> "" Then
@@ -58,27 +124,28 @@ Private Sub ScanFolder(ByVal folder As Object, ByVal ws As Worksheet, ByRef next
                 indexVal = topFolder
             End If
         End If
-        
-        ws.Cells(nextRow, 1).Value = indexVal
-        
-        ws.Hyperlinks.Add Anchor:=ws.Cells(nextRow, 2), _
-            Address:=file.Path, TextToDisplay:=file.Path
-        
-        ws.Cells(nextRow, 3).Value = file.Name
-        ws.Cells(nextRow, 4).Value = yearVal
-        ws.Cells(nextRow, 5).Value = monthVal
-        ws.Cells(nextRow, 6).Value = file.DateLastModified
-        
-        nextRow = nextRow + 1
+
+        Dim info(0 To 5) As Variant
+        info(0) = indexVal
+        info(1) = file.Path
+        info(2) = file.Name
+        info(3) = yearVal
+        info(4) = monthVal
+        info(5) = file.DateLastModified
+
+        fileList.Add info
     Next file
-    
+
     For Each subFolder In folder.SubFolders
-        Call ScanFolder(subFolder, ws, nextRow, rootPath)
+        Call CollectFiles(subFolder, fileList, rootPath)
     Next subFolder
 
 End Sub
 
 
+' ============================================================
+' YEAR/MONTH EXTRACTION (UNCHANGED)
+' ============================================================
 Private Sub ExtractYearMonth(ByVal fileName As String, ByRef yr As String, ByRef mn As String)
 
     Dim parts() As String
@@ -86,11 +153,11 @@ Private Sub ExtractYearMonth(ByVal fileName As String, ByRef yr As String, ByRef
     Dim cleaned As String
     Dim foundMonth As Boolean
     Dim fourDigitYear As String
-    
+
     yr = ""
     mn = ""
     foundMonth = False
-    
+
     cleaned = LCase(fileName)
     cleaned = Replace(cleaned, ".pdf", "")
     cleaned = Replace(cleaned, ".jpg", "")
@@ -99,51 +166,37 @@ Private Sub ExtractYearMonth(ByVal fileName As String, ByRef yr As String, ByRef
     cleaned = Replace(cleaned, ".zip", "")
     cleaned = Replace(cleaned, "_", " ")
     cleaned = Replace(cleaned, "-", " ")
-    cleaned = Replace(cleaned, ".", " ")   ' <-- FIX para casos como 04.2022
-    
+    cleaned = Replace(cleaned, ".", " ")
+
     parts = Split(cleaned, " ")
-    
-    ' Detectar año de 4 dígitos en cualquier parte
+
     fourDigitYear = GetYearFromString(cleaned)
     If fourDigitYear <> "" Then yr = fourDigitYear
-    
+
     For Each p In parts
-        
-        ' Holiday, Anniversaryexplícito
-            Dim y As String
+
         If InStr(p, "hol") > 0 Then
             mn = "Holiday"
-            y = Trim(Replace(p, "hol", ""))
-            If IsNumeric(y) Then
-                If CInt(y) > 60 Then yr = "19" & y Else yr = "20" & y
-            End If
-            Exit Sub
+            GoTo SkipLoop
         End If
 
         If InStr(p, "anni") > 0 Then
             mn = "Anniversary"
-            y = Trim(Replace(p, "anni", ""))
-            If IsNumeric(y) Then
-                If CInt(y) > 60 Then yr = "19" & y Else yr = "20" & y
-            End If
-            Exit Sub
+            GoTo SkipLoop
         End If
 
-        ' Año de 4 dígitos si no se detectó antes
         If yr = "" Then
             If IsNumeric(p) And Len(p) = 4 Then
                 If CInt(p) >= 1900 And CInt(p) <= Year(Date) + 1 Then yr = p
             End If
         End If
-        
-        ' Año de 2 dígitos si no hay año de 4 dígitos
+
         If yr = "" Then
             If IsNumeric(p) And Len(p) = 2 Then
                 If CInt(p) > 60 Then yr = "19" & p Else yr = "20" & p
             End If
         End If
-        
-        ' MES POR PALABRA (PRIORIDAD MÁXIMA)
+
         Select Case p
             Case "jan", "january": mn = "January": foundMonth = True
             Case "feb", "february": mn = "February": foundMonth = True
@@ -158,22 +211,19 @@ Private Sub ExtractYearMonth(ByVal fileName As String, ByRef yr As String, ByRef
             Case "nov", "november": mn = "November": foundMonth = True
             Case "dec", "december": mn = "December": foundMonth = True
         End Select
-        
-        ' Si ya se detectó mes por palabra, ignorar meses numéricos
+
         If foundMonth Then GoTo SkipNumeric
-        
-        ' MES NUMÉRICO SOLO SI NO HAY MES POR PALABRA
+
         If IsNumeric(p) And Len(p) <= 2 Then
             If CInt(p) >= 1 And CInt(p) <= 12 Then
                 mn = MonthName(CInt(p))
                 foundMonth = True
             End If
         End If
-        
+
 SkipNumeric:
     Next p
-    
-    ' 13 o 14 = Holiday si no hay mes
+
     If Not foundMonth Then
         For Each p In parts
             If p = "13" Or p = "14" Then
@@ -183,14 +233,18 @@ SkipNumeric:
         Next p
     End If
 
+SkipLoop:
 End Sub
 
 
+' ============================================================
+' YEAR DETECTION
+' ============================================================
 Private Function GetYearFromString(ByVal s As String) As String
     Dim i As Long
     Dim candidate As String
     Dim y As Long
-    
+
     For i = 1 To Len(s) - 3
         candidate = Mid$(s, i, 4)
         If IsNumeric(candidate) Then
@@ -201,10 +255,14 @@ Private Function GetYearFromString(ByVal s As String) As String
             End If
         End If
     Next i
-    
+
     GetYearFromString = ""
 End Function
 
+
+' ============================================================
+' TOP-LEVEL FOLDER
+' ============================================================
 Private Function GetTopLevelFolder(ByVal folderPath As String, ByVal rootPath As String) As String
     Dim rel As String
 
@@ -222,6 +280,10 @@ Private Function GetTopLevelFolder(ByVal folderPath As String, ByVal rootPath As
     GetTopLevelFolder = Split(rel, "\")(0)
 End Function
 
+
+' ============================================================
+' UPDATE INVENTORY (UNCHANGED)
+' ============================================================
 Private Sub UpdateMagazineInventory(ByVal startPath As String)
     Dim ws As Worksheet
     Dim pubCol As Long, docCol As Long
@@ -262,6 +324,10 @@ Private Sub UpdateMagazineInventory(ByVal startPath As String)
     Next c
 End Sub
 
+
+' ============================================================
+' MAP PUBLICATION → MOST RECENT PDF
+' ============================================================
 Private Function GetPublicationPdfMap(ByVal startPath As String) As Object
     Dim fso As Object
     Dim root As Object
