@@ -72,11 +72,12 @@ Sub ReadOneDriveMagazines()
     '-----------------------------------------
     ' ADD HYPERLINKS (FASTER VIA FORMULA)
     '-----------------------------------------
-    Dim r As Long
-    For r = 2 To fileList.Count + 1
-        ws.Cells(r, 2).Formula = "=HYPERLINK(""" & ws.Cells(r, 2).Value & """,""" & ws.Cells(r, 2).Value & """)"
-    Next r
-
+    Dim r As Long  
+    For r = 2 To fileList.Count + 1  
+        Dim linkPath As String  
+        linkPath = Replace(ws.Cells(r, 2).Value, "#", "%23")  
+        ws.Cells(r, 2).Formula = "=HYPERLINK(""file:///" & linkPath & """,""" & "file:///" & linkPath & """)"  
+    Next r  
     '-----------------------------------------
     ' UPDATE INVENTORY
     '-----------------------------------------
