@@ -1,0 +1,236 @@
+Private Sub cbGenerateOFX_BeforeDragOver(ByVal Cancel As MSForms.ReturnBoolean, ByVal Data As MSForms.DataObject, ByVal X As Single, ByVal Y As Single, ByVal DragState As MSForms.fmDragState, ByVal Effect As MSForms.ReturnEffect, ByVal Shift As Integer)
+
+End Sub
+
+Private Sub cbGenerateOFX_BeforeDropOrPaste(ByVal Cancel As MSForms.ReturnBoolean, ByVal Action As MSForms.fmAction, ByVal Data As MSForms.DataObject, ByVal X As Single, ByVal Y As Single, ByVal Effect As MSForms.ReturnEffect, ByVal Shift As Integer)
+
+End Sub
+
+Private Sub cbGenerateOFX_Click()
+' Generate OFX file from the data in the 'Export to OFX' spreadsheet
+
+On Error Resume Next
+
+' General variables
+Dim iResult As Integer
+Dim iTransaction As Integer
+Dim dtDatetime As Date
+
+' Output file name
+Dim OutputFilename As String
+
+' OFX file header
+Dim OFX_HEADER As String
+Dim OFX_SIGNONMSGSRSV1_HEADER As String
+Dim OFX_SIGNONMSGSRSV1_DTSERVER As String
+Dim OFX_SIGNONMSGSRSV1_FOOTER As String
+Dim OFX_BANKMSGSRSV1_HEADER As String
+Dim OFX_BANKMSGSRSV1_FOOTER As String
+
+' Bank account information
+Dim OFX_BANKACCTFROM_HEADER As String
+Dim OFX_BANKID As String
+Dim OFX_ACCTID As String
+Dim OFX_ACCTTYPE As String
+Dim OFX_BANKACCTFROM_FOOTER As String
+
+' Transaction list information
+Dim OFX_BANKTRANLIST_HEADER As String
+Dim OFX_BANKTRANLIST_DTSTART As String
+Dim OFX_BANKTRANLIST_DTEND As String
+Dim OFX_BANKTRANLIST_FOOTER As String
+
+' Transactions information
+Dim OFX_STMTTRN_HEADER As String
+Dim OFX_STMTTRN_TRNTYPE As String
+Dim OFX_STMTTRN_DTPOSTED As String
+Dim OFX_STMTTRN_TRNAMT As String
+Dim OFX_STMTTRN_FITID As String
+Dim OFX_STMTTRN_NAME As String
+Dim OFX_STMTTRN_MEMO As String
+Dim OFX_STMTTRN_FOOTER As String
+
+' Ledger balance information
+Dim OFX_LEDGERBAL_HEADER As String
+Dim OFX_LEDGERBAL_BALAMT As String
+Dim OFX_LEDGERBAL_DTASOF As String
+Dim OFX_LEDGERBAL_FOOTER As String
+
+' Closing tag
+Dim OFX_FOOTER As String
+
+' OFX file header
+OFX_HEADER = "OFXHEADER:100" & Chr(10) & Chr(13) & Chr(10) & _
+                "DATA:OFXSGML" & Chr(10) & Chr(13) & Chr(10) & _
+                "VERSION:102" & Chr(10) & Chr(13) & Chr(10) & _
+                "SECURITY:NONE" & Chr(10) & Chr(13) & Chr(10) & _
+                "ENCODING:USASCII" & Chr(10) & Chr(13) & Chr(10) & _
+                "CHARSET:1252" & Chr(10) & Chr(13) & Chr(10) & _
+                "COMPRESSION:NONE" & Chr(10) & Chr(13) & Chr(10) & _
+                "OLDFILEUID:NONE" & Chr(10) & Chr(13) & Chr(10) & _
+                "NEWFILEUID:NONE" & Chr(10) & Chr(10) & Chr(10) & Chr(10) & Chr(13) & Chr(10) & _
+                "<OFX>" & Chr(10) & Chr(13)
+
+OFX_SIGNONMSGSRSV1_HEADER = Chr(9) & "<SIGNONMSGSRSV1>" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & "<SONRS>" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & Chr(9) & "<STATUS>" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<CODE>0" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<SEVERITY>INFO" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & Chr(9) & "</STATUS>" & Chr(10)
+OFX_SIGNONMSGSRSV1_DTSERVER = Chr(9) & Chr(9) & Chr(9) & "<DTSERVER>"
+OFX_SIGNONMSGSRSV1_FOOTER = Chr(9) & Chr(9) & Chr(9) & "<LANGUAGE>ENG" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & "</SONRS>" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & "</SIGNONMSGSRSV1>" & Chr(10) & Chr(10)
+
+
+OFX_BANKMSGSRSV1_HEADER = Chr(9) & "<BANKMSGSRSV1>" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & "<STMTTRNRS>" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & Chr(9) & "<TRNUID>0" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & Chr(9) & "<STATUS>" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<CODE>0" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<SEVERITY>INFO" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & Chr(9) & "</STATUS>" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & "<STMTRS>" & Chr(10) & Chr(13) & Chr(10) & _
+                            Chr(9) & Chr(9) & Chr(9) & "<CURDEF>"
+OFX_STMTRS_FOOTER = Chr(9) & Chr(9) & Chr(9) & "</STMTRS>" & Chr(10)
+OFX_STMTTRNRS_FOOTER = Chr(9) & Chr(9) & Chr(9) & "</STMTTRNRS>" & Chr(10)
+OFX_BANKMSGSRSV1_FOOTER = Chr(9) & "</BANKMSGSRSV1>" & Chr(10)
+
+' Bank account information
+OFX_BANKACCTFROM_HEADER = Chr(9) & Chr(9) & Chr(9) & "<BANKACCTFROM>" & Chr(10)
+OFX_BANKID = Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<BANKID>"
+OFX_ACCTID = Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<ACCTID>"
+OFX_ACCTTYPE = Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<ACCTTYPE>"
+OFX_BANKACCTFROM_FOOTER = Chr(9) & Chr(9) & Chr(9) & "</BANKACCTFROM>" & Chr(10)
+
+' Transaction list information
+OFX_BANKTRANLIST_HEADER = Chr(9) & Chr(9) & Chr(9) & "<BANKTRANLIST>" & Chr(10)
+OFX_BANKTRANLIST_DTSTART = Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<DTSTART>"
+OFX_BANKTRANLIST_DTEND = Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<DTEND>"
+OFX_BANKTRANLIST_FOOTER = Chr(9) & Chr(9) & Chr(9) & Chr(9) & "</BANKTRANLIST>" & Chr(10)
+
+' Transactions information
+OFX_STMTTRN_HEADER = Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<STMTTRN>" & Chr(10)
+OFX_STMTTRN_TRNTYPE = Chr(9) & Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<TRNTYPE>"
+OFX_STMTTRN_DTPOSTED = Chr(9) & Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<DTPOSTED>"
+OFX_STMTTRN_TRNAMT = Chr(9) & Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<TRNAMT>"
+OFX_STMTTRN_FITID = Chr(9) & Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<FITID>"
+OFX_STMTTRN_NAME = Chr(9) & Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<NAME>"
+OFX_STMTTRN_MEMO = Chr(9) & Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<MEMO>"
+OFX_STMTTRN_FOOTER = Chr(9) & Chr(9) & Chr(9) & Chr(9) & "</STMTTRN>" & Chr(10)
+
+' Ledger balance information
+OFX_LEDGERBAL_HEADER = Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<LEDGERBAL>" & Chr(10)
+OFX_LEDGERBAL_BALAMT = Chr(9) & Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<BALAMT>"
+OFX_LEDGERBAL_DTASOF = Chr(9) & Chr(9) & Chr(9) & Chr(9) & Chr(9) & "<DTASOF>"
+OFX_LEDGERBAL_FOOTER = Chr(9) & Chr(9) & Chr(9) & Chr(9) & "</LEDGERBAL>" & Chr(10)
+
+' Closing tag
+OFX_FOOTER = "</OFX>" & Chr(10) & Chr(10)
+
+' Open output file
+OutputFilename = Worksheets("XLS2OFX").Range("OutputFile")
+
+Set fs = CreateObject("Scripting.FileSystemObject")
+Set ofxstream = fs.CreateTextFile(OutputFilename, True)
+If Err.Number <> 0 Then
+    iReturn = MsgBox(Error(Err.Number), vbCritical, "XLS2OFX Runtime Error")
+Else
+    ' Write OFX Header
+    ofxstream.WriteLine (OFX_HEADER)
+    ofxstream.WriteLine (OFX_SIGNONMSGSRSV1_HEADER)
+    'Date format is 20031010000000.000[-5:EST]
+    dtDatetime = Worksheets("XLS2OFX").Range("StatementStartDate")
+    StatementStartDate = Format(dtDatetime, "yyyymmdd") & "000000.000[-5:EST]"
+    ofxstream.WriteLine (OFX_SIGNONMSGSRSV1_DTSERVER & StatementStartDate & Chr(10))
+    ofxstream.WriteLine (OFX_SIGNONMSGSRSV1_FOOTER)
+    
+    AcctCurrency = Worksheets("XLS2OFX").Range("AcctCurrency")
+    ofxstream.WriteLine (OFX_BANKMSGSRSV1_HEADER & AcctCurrency & Chr(10))
+    
+    ofxstream.WriteLine (OFX_BANKACCTFROM_HEADER)
+    BankId = Worksheets("XLS2OFX").Range("BankId")
+    ofxstream.WriteLine (OFX_BANKID & BankId & Chr(10))
+    AccountNo = Worksheets("XLS2OFX").Range("AccountNo")
+    ofxstream.WriteLine (OFX_ACCTID & AccountNo & Chr(10))
+    AcctType = Worksheets("XLS2OFX").Range("AcctType")
+    ofxstream.WriteLine (OFX_ACCTTYPE & AcctType & Chr(10))
+    ofxstream.WriteLine (OFX_BANKACCTFROM_FOOTER)
+    
+    ' Write financial transactions
+    ofxstream.WriteLine (OFX_BANKTRANLIST_HEADER)
+    ofxstream.WriteLine (OFX_BANKTRANLIST_DTSTART & StatementStartDate & Chr(10))
+    StatementStartDate = Worksheets("XLS2OFX").Range("StatementEndDate")
+    dtDatetime = Worksheets("XLS2OFX").Range("StatementEndDate ")
+    StatementEndDate = Format(dtDatetime, "yyyymmdd") & "000000.000[-5:EST]"
+    ofxstream.WriteLine (OFX_BANKTRANLIST_DTEND & StatementEndDate & Chr(10))
+    
+    PreviousBalance = Worksheets("XLS2OFX").Range("PreviousBalance")
+    FinalBalance = PreviousBalance
+    iTransaction = 1
+    
+    While Worksheets("XLS2OFX").Range("TransactionListTop").Offset(iTransaction, 0).Value <> ""
+        'Get transaction information
+        dtDatetime = Worksheets("XLS2OFX").Range("TransactionListTop").Offset(iTransaction, 0).Value
+        sTranDate = Format(dtDatetime, "yyyymmdd") & "000000.000[-5:EST]"
+        sTranName = Worksheets("XLS2OFX").Range("TransactionListTop").Offset(iTransaction, 1).Value
+        sTranMemo = Worksheets("XLS2OFX").Range("TransactionListTop").Offset(iTransaction, 2).Value
+        sTranDebit = Worksheets("XLS2OFX").Range("TransactionListTop").Offset(iTransaction, 3).Value
+        sTranCredit = Worksheets("XLS2OFX").Range("TransactionListTop").Offset(iTransaction, 4).Value
+        
+        'Record transaction in OFX format
+        ofxstream.WriteLine (OFX_STMTTRN_HEADER)
+        If sTranDebit <> "" Then
+            ofxstream.WriteLine (OFX_STMTTRN_TRNTYPE & "DEBIT" & Chr(10))
+            sTranAmount = sTranDebit
+            FinalBalance = FinalBalance + Val(sTranAmount)
+        Else
+            ofxstream.WriteLine (OFX_STMTTRN_TRNTYPE & "CREDIT" & Chr(10))
+            'sTranAmount = "-" & sTranCredit
+            sTranAmount = sTranCredit
+            FinalBalance = FinalBalance - Val(sTranAmount)
+        End If
+        ofxstream.WriteLine (OFX_STMTTRN_DTPOSTED & sTranDate & Chr(10))
+        ofxstream.WriteLine (OFX_STMTTRN_TRNAMT & sTranAmount & Chr(10))
+        'Emulated FTID format is date stamp plus transaction number (should be unique)
+        'Example: "200303170001"
+        sTranFTID = Format(dtDatetime, "yyyymmdd") & Format(iTransaction, "0000")
+        ofxstream.WriteLine (OFX_STMTTRN_FITID & sTranFTID & Chr(10))
+        ofxstream.WriteLine (OFX_STMTTRN_NAME & sTranName & Chr(10))
+        If Len(sTranMemo) > 0 Then
+            ofxstream.WriteLine (OFX_STMTTRN_MEMO & sTranMemo & Chr(10))
+        End If
+        ofxstream.WriteLine (OFX_STMTTRN_FOOTER)
+        
+        'Get next transaction
+        iTransaction = iTransaction + 1
+    Wend
+    
+    ofxstream.WriteLine (OFX_BANKTRANLIST_FOOTER)
+    'Ledger balance
+    ofxstream.WriteLine (OFX_LEDGERBAL_HEADER)
+    ofxstream.WriteLine (OFX_LEDGERBAL_BALAMT & Str(FinalBalance) & Chr(10))
+    ofxstream.WriteLine (OFX_LEDGERBAL_DTASOF & StatementEndDate & Chr(10))
+    ofxstream.WriteLine (OFX_LEDGERBAL_FOOTER)
+    
+    ' Write OFX Footer
+    ofxstream.WriteLine (OFX_STMTRS_FOOTER)
+    ofxstream.WriteLine (OFX_STMTTRNRS_FOOTER)
+    ofxstream.WriteLine (OFX_BANKMSGSRSV1_FOOTER)
+    ofxstream.WriteLine (OFX_FOOTER)
+    
+    ' Close file
+    ofxstream.Close
+    MsgBox "File " + OutputFilename + " created!"
+End If
+
+End Sub
+
+
+Private Sub cbGenerateOFX_DblClick(ByVal Cancel As MSForms.ReturnBoolean)
+
+End Sub
+
+Private Sub Worksheet_SelectionChange(ByVal Target As Range)
+
+End Sub
