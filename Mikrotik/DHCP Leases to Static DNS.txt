@@ -1,0 +1,87 @@
+#.* by RouterOS
+#
+# DHCP Leases to Static DNS
+#
+
+#
+# Variables
+#
+:local tld "lan"
+:local addtld false
+
+:local scriptTTL "01:00:00"
+:local scriptComment "DHCP"
+
+:local byComment false
+:local byHostname true
+
+#
+# Script
+#
+:set scriptComment ("+" . $scriptComment)
+
+# Flush Old Dynamic Entries
+/ip dns static {
+	remove [find comment~("^" . $scriptComment . ".*\$")]
+}
+
+# Insert by Comment
+:if ($byComment) do={
+	:local currentComment ($scriptComment . "-Comment")
+	/ip dhcp-server lease {
+		:foreach i in=[find comment~"^([^+])*\\+([^+])*\$"] do={
+			:local leaseComment [get $i comment]
+			:local currentHostname [:pick $leaseComment ([:find $leaseComment "+"]+1) [:len $leaseComment]] 
+
+			:if ($addtld) do={
+				:set currentHostname ($currentHostname . "." . $tld)
+			}
+
+			:local currentAddress [get $i address]
+			
+			:local free true
+				
+			/ip dns static {
+				:foreach j in [find name=$currentHostname] do={
+					:set free false
+				}
+
+				:if ($free) do={
+					/ip dns static add name=$currentHostname address=$currentAddress ttl=$scriptTTL comment=$currentComment
+				}
+			}   
+		}
+	}
+}
+# Insert by Hostname
+:if ($byHostname) do={
+	
+	/ip dhcp-server lease {
+		:foreach i in=[find] do={
+			:if ([:len [get $i host-name]] > 0) do={
+				:local currentHostname [get $i host-name]
+				
+				
+				:if ($addtld) do={
+					:set currentHostname ($currentHostname . "." . $tld)
+				}
+				
+				:local currentComment ($scriptComment . "-Hostname-" . $currentHostname )
+				
+				:local currentAddress [get $i address]
+			
+				:local free true
+				
+				/ip dns static {
+					:foreach j in [find name=$currentHostname] do={
+						:set free false
+					}
+
+					:if ($free) do={
+						/ip dns static add name=$currentHostname address=$currentAddress ttl=$scriptTTL comment=$currentComment
+					}   
+				}
+			}
+		}
+	}
+}

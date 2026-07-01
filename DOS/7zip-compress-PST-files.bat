@@ -1,0 +1,1 @@
+FOR %i IN (*.pst) DO "c:\Program Files\7-Zip\7z.exe" a -tzip "%~ni.zip" "%i"

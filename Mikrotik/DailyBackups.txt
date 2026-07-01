@@ -1,0 +1,38 @@
+#Title: DailyBackup
+#Author: Angel G. Reyes Rosado, P.E.
+#Date: 4/6/2016
+#
+# Description:
+# Create backup file.  Backup file to be identified by date of the week.
+:local date [/system clock get date]
+
+
+
+# Math Calculation here
+:local cDay ""
+:local cDayFile ""
+:local months [:toarray "jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec"]
+:local monthtbl [:toarray "0,3,3,6,1,4,6,2,5,0,3,5"]
+:local daytbl [:toarray "sun,mon,tue,wed,thu,fri,sat"]
+
+:local month [:pick $date 0 3]
+:local day [:pick $date 4 6]
+:local dayc [:pick $date 5 6]
+:local century [:pick $date 7 9]
+:local year [:pick $date 9 11]
+:local yearc [:pick $date 10 11]
+
+:local sum 0
+:set sum ($sum + (2 * (3 - ($century - (($century / 4) * 4)))))
+:set sum ($sum + ($year / 4))
+:set sum ($sum + $year + $day)
+:for mindex from=0 to=[:len $months] do={
+  :if ([:pick $months $mindex] = $month) do={:set sum ($sum + [:pick $monthtbl $mindex]) }
+}
+:set sum ($sum - (($sum / 7) * 7))
+:set cDay [:pick $daytbl $sum]
+:set cDayFile ("dailybackup.". $cDay)
+#:put $cDay
+:put ("Creating backup " .  $cDayFile . "...");
+# Create backup, overwrite existing backup
+/system backup save name=$cDayFile;

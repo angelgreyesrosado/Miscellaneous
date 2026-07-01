@@ -1,0 +1,5 @@
+Function GetFileNames([string]$path, [string]$outputFile) {
+  $list = Get-ChildItem $path -Recurse
+  $list | Select-Object BaseName, FullName | Export-Csv $outputFile
+}
+GetFileNames ".\*.pst" "C:\temp\Output.csv"

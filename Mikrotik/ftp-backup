@@ -1,0 +1,58 @@
+# ftp-backup
+:put "Starting FTP Backup..."
+:local saveUserDB true
+:local saveSysBackup false
+:local encryptSysBackup false
+:local saveRawExport false
+
+:local FTPServer "10.9.1.16"
+:local FTPPort 21
+:local FTPUser "backup"
+:local FTPPass "backup123"
+
+
+:local ts [/system clock get time]
+:set ts ([:pick $ts 0 2].[:pick $ts 3 5].[:pick $ts 6 8])
+
+:local ds [/system clock get date]
+:set ds ([:pick $ds 7 11].[:pick $ds 0 3].[:pick $ds 4 6])
+
+:local fname ("BACKUP-".[/system identity get name]."-".$ds."-".$ts)
+#:local fname ("BACKUP-".[/system identity get name])
+:local sfname ("/".$fname)
+
+:if ($saveSysBackup) do={
+  :if ($encryptSysBackup = true) do={ /system backup save name=($sfname.".backup") }
+  :if ($encryptSysBackup = false) do={ /system backup save dont-encrypt=yes name=($sfname.".backup") }
+  :log info message="System Backup Finished"
+}
+
+if ($saveRawExport) do={
+  /export file=($sfname.".rsc")
+  :log info message="Raw configuration script export Finished"
+}
+
+:local backupFileName ""
+:local backupFileNameHost ""
+
+:foreach backupFile in=[/file find] do={
+
+  
+  :set backupFileName ([/file get $backupFile name])
+  :set backupFileNameHost ("/backups/Mikrotik/Router/".$backupFileName)
+  :put ("Backing up: ". $backupFileName)
+  :log info message=$backupFileName
+    /tool fetch address=$FTPServer port=$FTPPort src-path=$backupFileName user=$FTPUser mode=ftp password=$FTPPass dst-path=$backupFileNameHost upload=yes
+}
+
+:delay 5s
+
+#:foreach backupFile in=[/file find] do={
+#  :if ([:typeof [:find [/file get $backupFile name] "BACKUP-"]]!="nil") do={
+#    /file remove $backupFile
+#  }
+#/file remove $backupFile
+}
+
+:log info message="Successfully removed Temporary Backup Files"
+:log info message="Automatic Backup Completed Successfully"

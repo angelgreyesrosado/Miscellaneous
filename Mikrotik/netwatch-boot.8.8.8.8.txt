@@ -1,0 +1,3 @@
+:if ([/ping 8.8.8.8 interval=5 count=60] =0) do={
+log info "my ping watchdog is down" ; /system reboot
+}

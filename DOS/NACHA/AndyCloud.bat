@@ -1,0 +1,1 @@
+powershell h:\syncFilesV3.ps1 -sourceDir 'h:\Agn\' -destDir 'z:\ATTY\Agn\' 2> c:\agnCloud.txt
