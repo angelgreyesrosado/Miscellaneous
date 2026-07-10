@@ -1,11 +1,17 @@
 '  ============================================================
 '  FileDirectoryMagazines.bas
 '  ============================================================
+'  This macro scans a local OneDrive magazines folder, extracts
+'  metadata from each file name, and writes the results to an
+'  Excel worksheet for inventory and quick browsing.
 Option Explicit
 
 ' ============================================================
 ' MAIN ENTRY POINT
 ' ============================================================
+'  This is the main routine that prepares Excel, scans the
+'  source folder, builds the output data, and updates the
+'  inventory sheet.
 Sub ReadOneDriveMagazines()
 
     Dim fso As Object
@@ -103,6 +109,9 @@ End Sub
 ' ============================================================
 ' COLLECT FILES INTO MEMORY (NO SHEET WRITES)
 ' ============================================================
+'  Recursively walks the folder tree and stores each matching
+'  file's details in memory so the worksheet can be populated
+'  efficiently in a single bulk write.
 Private Sub CollectFiles(ByVal folder As Object, ByRef fileList As Collection, ByVal rootPath As String)
 
     Dim file As Object
@@ -150,6 +159,8 @@ End Sub
 ' ============================================================
 ' YEAR/MONTH EXTRACTION (UNCHANGED)
 ' ============================================================
+'  Parses a file name to infer a year and month, which helps
+'  categorize the magazine entries in the output table.
 Private Sub ExtractYearMonth(ByVal fileName As String, ByRef yr As String, ByRef mn As String)
 
     Dim parts() As String
@@ -244,6 +255,8 @@ End Sub
 ' ============================================================
 ' YEAR DETECTION
 ' ============================================================
+'  Looks for a 4-digit year inside the file name so the macro can
+'  label files even when the year is embedded in a more complex name.
 Private Function GetYearFromString(ByVal s As String) As String
     Dim i As Long
     Dim candidate As String
@@ -267,6 +280,8 @@ End Function
 ' ============================================================
 ' TOP-LEVEL FOLDER
 ' ============================================================
+'  Returns the first folder below the scanned root so the output
+'  can show a useful publication or section grouping.
 Private Function GetTopLevelFolder(ByVal folderPath As String, ByVal rootPath As String) As String
     Dim rel As String
 
@@ -288,6 +303,8 @@ End Function
 ' ============================================================
 ' UPDATE INVENTORY (UNCHANGED)
 ' ============================================================
+'  Fills the Magazine Inventory sheet with the most recent PDF
+'  document path for each publication based on the scanned folder.
 Private Sub UpdateMagazineInventory(ByVal startPath As String)
     Dim ws As Worksheet
     Dim pubCol As Long, docCol As Long
@@ -332,6 +349,8 @@ End Sub
 ' ============================================================
 ' MAP PUBLICATION → MOST RECENT PDF
 ' ============================================================
+'  Builds a lookup table of each publication folder to its latest
+'  PDF file, which is used to populate the inventory sheet.
 Private Function GetPublicationPdfMap(ByVal startPath As String) As Object
     Dim fso As Object
     Dim root As Object
