@@ -24,9 +24,6 @@ try {
             exit 0
         }
     }
-    else {
-        exit 0
-    }
 
     $targetDir = 'VisualBasic'
     $changedFiles = @(git diff --cached --name-only -- $targetDir | Where-Object { $_ -and $_.Trim() })
@@ -78,13 +75,57 @@ try {
         $aiMessage = "chore: update $targetDir"
     }
 
+    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    $changelogFile = Join-Path $repoRoot 'VisualBasic/CHANGELOG.md'
+    $changelogDir = Split-Path -Parent $changelogFile
+    New-Item -ItemType Directory -Path $changelogDir -Force | Out-Null
+
+    $changelogBody = if (Test-Path $changelogFile) {
+        $existing = Get-Content -Path $changelogFile -Raw
+        if ([string]::IsNullOrWhiteSpace($existing)) { '# Changelog' } else { $existing.TrimEnd() }
+    }
+    else {
+        '# Changelog'
+    }
+
+    if ($changelogBody -notmatch '^# Changelog') {
+        $changelogBody = @('# Changelog', '', $changelogBody) -join [Environment]::NewLine
+    }
+
+    $entryLines = @(
+        '',
+        "## $timestamp",
+        '',
+        '### Commit',
+        '',
+        "- **Subject:** $aiMessage",
+        '- **Scope:** VisualBasic',
+        '- **Files:**',
+        ''
+    )
+
+    foreach ($file in $changedFiles) {
+        $entryLines += "  - $file"
+    }
+
+    $entryLines += @('', '### Summary', '', '```text', $summary.Trim(), '```', '')
+    $changelogBody = @($changelogBody.TrimEnd(), ($entryLines -join [Environment]::NewLine)) -join [Environment]::NewLine
+    Set-Content -Path $changelogFile -Value $changelogBody.TrimEnd()
+
     $content = @(
         $aiMessage,
         '',
         'Auto-generated summary:',
         '',
-        $summary.Trim()
+        $summary.Trim(),
+        '',
+        "Markdown changelog: VisualBasic/CHANGELOG.md"
     )
+
+    $messageDir = Split-Path -Parent $CommitMessageFile
+    if ($messageDir) {
+        New-Item -ItemType Directory -Path $messageDir -Force | Out-Null
+    }
 
     Set-Content -Path $CommitMessageFile -Value ($content -join [Environment]::NewLine)
 }
